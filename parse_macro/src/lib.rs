@@ -96,7 +96,7 @@ fn handle_parse_macro(
 
     if let Some((_brace, content)) = input.content.as_mut() {
         let enum_name = &config.output_name;
-        content.push(parse_quote!{
+        content.push(parse_quote! {
             impl ::std::fmt::Display for #enum_name {
                 fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
                     match self {#(
@@ -105,7 +105,7 @@ fn handle_parse_macro(
                 }
             }
         });
-        
+
         for strukt in &structs {
             content.push(parse_quote! {
                 impl ::std::convert::From<#strukt> for #enum_name {
@@ -194,7 +194,7 @@ fn generate_from_string_impl(parse_tree: &ParseTree, enum_name: &Ident) -> Item 
                 impl ::std::str::FromStr for #enum_name {
                     type Err = ::std::string::String;
 
-                    fn from_str(s: &::std::primitive::str) -> ::std::result::Result<Self, ::std::string::String> {                        
+                    fn from_str(s: &::std::primitive::str) -> ::std::result::Result<Self, ::std::string::String> {
                         fn parse(rest: &::std::primitive::str) -> ::std::result::Result<#enum_name, &::std::primitive::str> {
                             #ts
                         }
@@ -263,7 +263,9 @@ fn _generate_from_string_impl_inner(options: &[ParseTree]) -> proc_macro2::Token
         }
     };
     let match_on_function = if !function_matches_binding.is_empty() {
-        let function_matches_binding_escaped = function_matches_binding.iter().map(|ident| escape_ident(*ident));
+        let function_matches_binding_escaped = function_matches_binding
+            .iter()
+            .map(|ident| escape_ident(*ident));
         quote! {
             #(
                 if let Ok((rest, #function_matches_binding_escaped)) = <#function_matches_name as ::command_parser::CommandParse>::parse_from_command(rest) {
