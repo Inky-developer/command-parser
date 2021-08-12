@@ -33,7 +33,7 @@ mod my_module {
     #[parse("Bar Baz $foo")]
     #[derive(PartialEq, Eq, Debug)]
     pub struct Bar {
-        foo: super::MyInt
+        foo: super::MyInt,
     }
 
     #[parse("This is a long command with option: $my_int", value=super::MyInt(0))]
@@ -41,7 +41,7 @@ mod my_module {
     #[derive(PartialEq, Eq, Debug)]
     pub struct MultipleOptions {
         pub value: super::MyInt,
-        pub my_int: super::MyInt
+        pub my_int: super::MyInt,
     }
 }
 
@@ -57,8 +57,23 @@ fn test_command_macro() {
 
     let multiple_options_a: Command = "This is a long command with option: 897".parse().unwrap();
     let multiple_options_b: Command = "Short version: 23874 15".parse().unwrap();
-    assert_eq!(multiple_options_a, Command::MultipleOptions(my_module::MultipleOptions{value: MyInt(0), my_int: MyInt(897)}));
-    assert_eq!(multiple_options_b, Command::MultipleOptions(my_module::MultipleOptions{value: MyInt(15), my_int: MyInt(23874)}));
-    assert_eq!(multiple_options_a.to_string(), "This is a long command with option: 897");
+    assert_eq!(
+        multiple_options_a,
+        Command::MultipleOptions(my_module::MultipleOptions {
+            value: MyInt(0),
+            my_int: MyInt(897)
+        })
+    );
+    assert_eq!(
+        multiple_options_b,
+        Command::MultipleOptions(my_module::MultipleOptions {
+            value: MyInt(15),
+            my_int: MyInt(23874)
+        })
+    );
+    assert_eq!(
+        multiple_options_a.to_string(),
+        "This is a long command with option: 897"
+    );
     assert_eq!(multiple_options_b.to_string(), "Short version: 23874 15");
 }
