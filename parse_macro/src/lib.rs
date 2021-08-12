@@ -281,7 +281,7 @@ fn _generate_from_string_impl_inner(options: &[ParseTree]) -> proc_macro2::Token
     };
     let match_on_literal = if !literal_matches.is_empty() {
         quote! {
-            let (next, rest) = rest.split_once(" ").ok_or(rest)?;
+            let (next, rest) = rest.split_once(" ").unwrap_or((rest, ""));
             match next {
                 #(
                     #literal_matches => {#literal_matches_and_then}
