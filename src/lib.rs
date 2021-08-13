@@ -62,6 +62,9 @@ impl CommandParse for i32 {
 impl CommandParse for String {
     fn parse_from_command(value: &str) -> Result<(&str, Self), &str> {
         let (rest, value) = parse_str(value);
+        if value.is_empty() {
+            return Err(rest);
+        }
         Ok((rest, value.to_string()))
     }
 }
