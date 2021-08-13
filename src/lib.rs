@@ -20,6 +20,31 @@ where
     }
 }
 
+/// Parse the string as T or as none if it could not be parsed
+pub fn parse_optional_command<T>(value: &str) -> (&str, Option<T>)
+where
+    T: CommandParse,
+{
+    match T::parse_from_command(value) {
+        Ok((rest, value)) => (rest, Some(value)),
+        Err(_) => (value, None),
+    }
+}
+
+/// Parses `T` repeatedly as long as possible
+pub fn parse_multiple_commands<T>(value: &str) -> (&str, Vec<T>)
+where
+    T: CommandParse,
+{
+    let mut items = Vec::new();
+    let mut rest = value;
+    while let Ok((next_rest, item)) = T::parse_from_command(rest) {
+        rest = next_rest;
+        items.push(item)
+    }
+    (rest, items)
+}
+
 /// Parses a single word and returns a tuple of `(rest, word)`
 pub fn parse_str(value: &str) -> (&str, &str) {
     let (value, rest) = value.split_once(" ").unwrap_or((value, ""));
