@@ -8,6 +8,18 @@ pub trait CommandParse: std::fmt::Display {
         Self: Sized;
 }
 
+pub fn parse_command<T>(value: &str) -> Result<T, &str>
+where
+    T: CommandParse,
+{
+    let (rest, value) = T::parse_from_command(value)?;
+    if !rest.is_empty() {
+        Err(rest)
+    } else {
+        Ok(value)
+    }
+}
+
 /// Parses a single word and returns a tuple of `(rest, word)`
 pub fn parse_str(value: &str) -> (&str, &str) {
     let (value, rest) = value.split_once(" ").unwrap_or((value, ""));
