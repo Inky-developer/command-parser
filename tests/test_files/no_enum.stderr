@@ -1,4 +1,4 @@
-error: Could not find target enum. The target enum has to be the first item in the module
+error: Could not find target enum. The target enum has to be the first enum in the module
  --> $DIR/no_enum.rs:4:1
   |
 4 | mod my_module {

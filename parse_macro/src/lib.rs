@@ -379,6 +379,20 @@ impl ParseAttr {
     }
 }
 
+/// Finds the target enum, which is the first enum in the module
+fn find_target_enum(module: &mut ItemMod) -> syn::Result<&mut ItemEnum> {
+    let span = module.span();
+    module.content.as_mut().and_then(|(_, content)| {
+        content.iter_mut().find_map(|item| {
+            if let Item::Enum(val) = item {
+                Some(val)
+            } else {
+                None
+            }
+        })
+    }).ok_or_else(|| syn::Error::new(span, "Could not find target enum. The target enum has to be the first enum in the module"))
+}
+
 struct AttributeData {
     parse_template: LitStr,
     defaults: Punctuated<KeywordArg, Token![,]>,
@@ -412,19 +426,6 @@ impl Parse for KeywordArg {
         let value = input.parse()?;
         Ok(KeywordArg { keyword, value })
     }
-}
-
-fn find_target_enum(module: &mut ItemMod) -> syn::Result<&mut ItemEnum> {
-    let span = module.span();
-    module.content.as_mut().and_then(|(_, content)| {
-        content.first_mut().and_then(|item| {
-            if let Item::Enum(val) = item {
-                Some(val)
-            } else {
-                None
-            }
-        })
-    }).ok_or_else(|| syn::Error::new(span, "Could not find target enum. The target enum has to be the first item in the module"))
 }
 
 #[derive(Debug)]
