@@ -126,7 +126,7 @@ fn handle_parse_macro(
         let command_parse_impl = generate_command_parse_impl(&parse_tree, &config.output_name);
         content.push(command_parse_impl);
 
-        let from_string_impl = parse_quote!{
+        let from_string_impl = parse_quote! {
             impl ::std::str::FromStr for #enum_name {
                 type Err = ::std::string::String;
 
@@ -259,14 +259,14 @@ fn _generate_from_string_impl_inner(options: &[ParseTree]) -> proc_macro2::Token
         let escaped_idents = idents.iter().map(escape_member);
         let escaped_default_idents = defaults.keys().map(escape_member);
         let default_values = defaults.values();
-        quote! {
+        quote! {{
             #(
                 let #escaped_default_idents = #default_values;
             )*
             return ::std::result::Result::Ok((rest, #struct_name {#(
                 #idents: #escaped_idents
             ),*}.into()))
-        }
+        }}
     } else {
         quote! {
             return ::std::result::Result::Err(rest)

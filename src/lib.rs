@@ -2,10 +2,8 @@ extern crate parse_macro;
 
 pub use parse_macro::parser;
 
-pub trait CommandParse: std::fmt::Display {
-    fn parse_from_command(value: &str) -> Result<(&str, Self), &str>
-    where
-        Self: Sized;
+pub trait CommandParse: std::fmt::Display + Sized {
+    fn parse_from_command(value: &str) -> Result<(&str, Self), &str>;
 }
 
 pub fn parse_command<T>(value: &str) -> Result<T, &str>
@@ -74,5 +72,15 @@ impl CommandParse for String {
             return Err(rest);
         }
         Ok((rest, value.to_string()))
+    }
+}
+
+impl<T> CommandParse for Box<T>
+where
+    T: CommandParse,
+{
+    fn parse_from_command(value: &str) -> Result<(&str, Self), &str> {
+        let (rest, value) = T::parse_from_command(value)?;
+        Ok((rest, Box::new(value)))
     }
 }
