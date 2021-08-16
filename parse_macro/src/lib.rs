@@ -123,8 +123,19 @@ fn handle_parse_macro(
 
         content.extend(display_impls.into_iter());
 
-        let from_string_impl = generate_from_string_impl(&parse_tree, &config.output_name);
-        content.push(from_string_impl)
+        let command_parse_impl = generate_command_parse_impl(&parse_tree, &config.output_name);
+        content.push(command_parse_impl);
+
+        let from_string_impl = parse_quote!{
+            impl ::std::str::FromStr for #enum_name {
+                type Err = ::std::string::String;
+
+                fn from_str(s: &::std::primitive::str) -> ::std::result::Result<Self, ::std::string::String> {
+                    ::command_parser::parse_command(s).map_err(::std::string::String::from)
+                }
+            }
+        };
+        content.push(from_string_impl);
     }
 
     Ok(input.to_token_stream())
@@ -191,19 +202,14 @@ fn generate_display_impl(
     val
 }
 
-fn generate_from_string_impl(parse_tree: &ParseTree, enum_name: &Ident) -> Item {
+fn generate_command_parse_impl(parse_tree: &ParseTree, enum_name: &Ident) -> Item {
     match &parse_tree.payload {
         ParseNode::Pass => {
             let ts = _generate_from_string_impl_inner(&parse_tree.options);
             parse_quote! {
-                impl ::std::str::FromStr for #enum_name {
-                    type Err = ::std::string::String;
-
-                    fn from_str(s: &::std::primitive::str) -> ::std::result::Result<Self, ::std::string::String> {
-                        fn parse(rest: &::std::primitive::str) -> ::std::result::Result<#enum_name, &::std::primitive::str> {
-                            #ts
-                        }
-                        parse(s).map_err(::std::string::String::from)
+                impl ::command_parser::CommandParse for #enum_name {
+                    fn parse_from_command(rest: &::std::primitive::str) -> ::std::result::Result<(&::std::primitive::str, Self), &::std::primitive::str> {
+                        #ts
                     }
                 }
             }
@@ -254,16 +260,12 @@ fn _generate_from_string_impl_inner(options: &[ParseTree]) -> proc_macro2::Token
         let escaped_default_idents = defaults.keys().map(escape_member);
         let default_values = defaults.values();
         quote! {
-            if rest.is_empty() {
-                #(
-                    let #escaped_default_idents = #default_values;
-                )*
-                return ::std::result::Result::Ok(#struct_name {#(
-                    #idents: #escaped_idents
-                ),*}.into())
-            } else {
-                return ::std::result::Result::Err(rest);
-            }
+            #(
+                let #escaped_default_idents = #default_values;
+            )*
+            return ::std::result::Result::Ok((rest, #struct_name {#(
+                #idents: #escaped_idents
+            ),*}.into()))
         }
     } else {
         quote! {
