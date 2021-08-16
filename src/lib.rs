@@ -54,7 +54,15 @@ pub fn parse_str(value: &str) -> (&str, &str) {
 impl CommandParse for i32 {
     fn parse_from_command(value: &str) -> Result<(&str, Self), &str> {
         let (rest, value_str) = parse_str(value);
-        let value = value_str.parse().map_err(|_| rest)?;
+        let value = value_str.parse().map_err(|_| value)?;
+        Ok((rest, value))
+    }
+}
+
+impl CommandParse for f32 {
+    fn parse_from_command(value: &str) -> Result<(&str, Self), &str> {
+        let (rest, value_str) = parse_str(value);
+        let value = value_str.parse().map_err(|_| value)?;
         Ok((rest, value))
     }
 }
