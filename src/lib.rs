@@ -65,6 +65,14 @@ impl CommandParse for f32 {
     }
 }
 
+impl CommandParse for f64 {
+    fn parse_from_command(value: &str) -> Result<(&str, Self), &str> {
+        let (rest, value_str) = parse_str(value);
+        let value = value_str.parse().map_err(|_| value)?;
+        Ok((rest, value))
+    }
+}
+
 impl CommandParse for String {
     fn parse_from_command(value: &str) -> Result<(&str, Self), &str> {
         let (rest, value) = parse_str(value);
