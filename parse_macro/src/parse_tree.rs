@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use proc_macro2::Ident;
-use syn::{Expr, Type};
+use syn::{Expr, Member, Type};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ParseTree {
@@ -13,14 +13,14 @@ pub struct ParseTree {
 pub enum ParseNode {
     EndOfInput {
         struct_name: Ident,
-        defaults: HashMap<Ident, Expr>,
-        idents: Vec<Ident>,
+        defaults: HashMap<Member, Expr>,
+        members: Vec<Member>,
     },
     Pass,
     Literal(String),
     Function {
         name: Type,
-        binding: Ident,
+        binding: Member,
     },
 }
 
@@ -36,13 +36,13 @@ impl ParseTree {
         &mut self,
         items: impl Iterator<Item = ParseNode>,
         struct_name: Ident,
-        defaults: HashMap<Ident, Expr>,
-        idents: Vec<Ident>,
+        defaults: HashMap<Member, Expr>,
+        members: Vec<Member>,
     ) {
         let with_end_of_input = items.chain(std::iter::once(ParseNode::EndOfInput {
             defaults,
             struct_name,
-            idents,
+            members,
         }));
         let mut tree = self;
 
@@ -118,7 +118,7 @@ mod test {
                                 payload: ParseNode::EndOfInput {
                                     struct_name: struct_name.clone(),
                                     defaults: defaults.clone(),
-                                    idents: idents.clone(),
+                                    members: idents.clone(),
                                 },
                             }],
                             payload: ParseNode::Literal("foo".to_string())
@@ -129,7 +129,7 @@ mod test {
                                 payload: ParseNode::EndOfInput {
                                     struct_name: struct_name.clone(),
                                     defaults: defaults.clone(),
-                                    idents: idents.clone(),
+                                    members: idents.clone(),
                                 }
                             }],
                             payload: ParseNode::Literal("bar".to_string()),

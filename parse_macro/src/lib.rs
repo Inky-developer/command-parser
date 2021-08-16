@@ -1,7 +1,10 @@
 mod parse_tree;
 
 extern crate proc_macro;
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    convert::TryInto,
+};
 
 use itertools::Itertools;
 use parse_tree::ParseNode;
@@ -11,11 +14,13 @@ use proc_macro2::Ident;
 use quote::{quote, ToTokens};
 use syn::{
     parse::Parse, parse_macro_input, parse_quote, punctuated::Punctuated, spanned::Spanned,
-    Attribute, AttributeArgs, Expr, Fields, Item, ItemEnum, ItemMod, ItemStruct, LitStr, Token,
-    Type,
+    Attribute, AttributeArgs, Expr, Fields, Index, Item, ItemEnum, ItemMod, ItemStruct, LitStr,
+    Member, Token, Type,
 };
 
 use crate::parse_tree::ParseTree;
+
+type StructFields = HashMap<Member, Type>;
 
 #[proc_macro_attribute]
 pub fn parser(args: TokenStream, input: TokenStream) -> TokenStream {
@@ -126,7 +131,7 @@ fn handle_parse_macro(
 }
 
 fn generate_display_impl(
-    optional_args: Vec<Ident>,
+    optional_args: Vec<Member>,
     interesting_attributes: &[ParseAttr],
     strukt: &ItemStruct,
 ) -> Item {
@@ -231,19 +236,22 @@ fn _generate_from_string_impl_inner(options: &[ParseTree]) -> proc_macro2::Token
             ParseNode::EndOfInput {
                 defaults,
                 struct_name,
-                idents,
-            } => stop_matching = Some((defaults, struct_name, idents)),
+                members,
+            } => stop_matching = Some((defaults, struct_name, members)),
             ParseNode::Pass => panic!("Invalid node: Pass"),
         }
     }
 
-    fn escape_ident(ident: &Ident) -> Ident {
-        Ident::new(&format!("_{}", ident.to_string()), ident.span())
+    fn escape_member(member: &Member) -> Ident {
+        match member {
+            Member::Named(ident) => Ident::new(&format!("_{}", ident), ident.span()),
+            Member::Unnamed(idx) => Ident::new(&format!("_{}", idx.index), idx.span()),
+        }
     }
 
     let match_on_stop = if let Some((defaults, struct_name, idents)) = stop_matching {
-        let escaped_idents = idents.iter().map(escape_ident);
-        let escaped_default_idents = defaults.keys().map(escape_ident);
+        let escaped_idents = idents.iter().map(escape_member);
+        let escaped_default_idents = defaults.keys().map(escape_member);
         let default_values = defaults.values();
         quote! {
             if rest.is_empty() {
@@ -265,7 +273,7 @@ fn _generate_from_string_impl_inner(options: &[ParseTree]) -> proc_macro2::Token
     let match_on_function = if !function_matches_binding.is_empty() {
         let function_matches_binding_escaped = function_matches_binding
             .iter()
-            .map(|ident| escape_ident(*ident));
+            .map(|member| escape_member(member));
         quote! {
             #(
                 if let Ok((rest, #function_matches_binding_escaped)) = <#function_matches_name as ::command_parser::CommandParse>::parse_from_command(rest) {
@@ -300,19 +308,27 @@ fn _generate_from_string_impl_inner(options: &[ParseTree]) -> proc_macro2::Token
     match_on_literal
 }
 
-fn extract_struct_fields(strukt: &ItemStruct) -> syn::Result<HashMap<Ident, Type>> {
+fn extract_struct_fields(strukt: &ItemStruct) -> syn::Result<StructFields> {
     let mut res = HashMap::new();
     match &strukt.fields {
         Fields::Named(named) => {
             for field in &named.named {
-                res.insert(field.ident.as_ref().unwrap().clone(), field.ty.clone());
+                res.insert(
+                    Member::Named(field.ident.as_ref().unwrap().clone()),
+                    field.ty.clone(),
+                );
             }
         }
-        Fields::Unnamed(_) => {
-            return Err(syn::Error::new(
-                strukt.span(),
-                "Tuple structs not implemented for now. Use a regular struct instead.",
-            ));
+        Fields::Unnamed(unnamed) => {
+            for (index, field) in unnamed.unnamed.iter().enumerate() {
+                res.insert(
+                    Member::Unnamed(Index {
+                        index: index.try_into().unwrap(),
+                        span: field.span(),
+                    }),
+                    field.ty.clone(),
+                );
+            }
         }
         Fields::Unit => {}
     }
@@ -322,7 +338,7 @@ fn extract_struct_fields(strukt: &ItemStruct) -> syn::Result<HashMap<Ident, Type
 
 fn find_interesting_attributes(
     attrs: &mut Vec<Attribute>,
-    fields: &HashMap<Ident, Type>,
+    fields: &StructFields,
 ) -> syn::Result<Vec<ParseAttr>> {
     let mut other_attributes = Vec::with_capacity(attrs.len());
     let mut found_attributes = Vec::new();
@@ -342,26 +358,35 @@ fn find_interesting_attributes(
 #[derive(Debug)]
 struct ParseAttr {
     parse_template: Vec<ParseNode>,
-    kwargs: HashMap<Ident, Expr>,
+    kwargs: HashMap<Member, Expr>,
 }
 
 impl ParseAttr {
-    pub fn new(attr_data: AttributeData, fields: &HashMap<Ident, Type>) -> syn::Result<Self> {
+    pub fn new(attr_data: AttributeData, fields: &StructFields) -> syn::Result<Self> {
         let mut parse_template = Vec::new();
         for part in attr_data.parse_template.value().split_ascii_whitespace() {
             let parse_node = match part.strip_prefix('$') {
-                Some(var) => ParseNode::Function {
-                    binding: Ident::new(var, attr_data.parse_template.span()),
-                    name: fields
-                        .get(&Ident::new(var, attr_data.parse_template.span()))
-                        .ok_or_else(|| {
-                            syn::Error::new(
-                                attr_data.parse_template.span(),
-                                format!("Could not find '{}' in this struct", var),
-                            )
-                        })?
-                        .clone(),
-                },
+                Some(var) => {
+                    let member = match var.parse::<u32>() {
+                        Ok(val) => Member::Unnamed(Index {
+                            span: attr_data.parse_template.span(),
+                            index: val,
+                        }),
+                        Err(_) => Member::Named(Ident::new(var, attr_data.parse_template.span())),
+                    };
+                    ParseNode::Function {
+                        name: fields
+                            .get(&member)
+                            .ok_or_else(|| {
+                                syn::Error::new(
+                                    attr_data.parse_template.span(),
+                                    format!("Could not find '{}' in this struct", var),
+                                )
+                            })?
+                            .clone(),
+                        binding: member,
+                    }
+                }
                 None => ParseNode::Literal(part.to_string()),
             };
             parse_template.push(parse_node);
@@ -369,7 +394,7 @@ impl ParseAttr {
 
         let mut defaults = HashMap::new();
         for kwarg in attr_data.defaults {
-            defaults.insert(kwarg.keyword, kwarg.value);
+            defaults.insert(kwarg.member, kwarg.value);
         }
 
         Ok(ParseAttr {
@@ -415,16 +440,16 @@ impl Parse for AttributeData {
 }
 
 struct KeywordArg {
-    keyword: Ident,
+    member: Member,
     value: Expr,
 }
 
 impl Parse for KeywordArg {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let keyword = input.parse()?;
+        let member = input.parse()?;
         let _eq_token: Token![=] = input.parse()?;
         let value = input.parse()?;
-        Ok(KeywordArg { keyword, value })
+        Ok(KeywordArg { member, value })
     }
 }
 
