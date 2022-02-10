@@ -52,7 +52,10 @@ pub fn parse_str(value: &str) -> (&str, &str) {
 impl CommandParse for i32 {
     fn parse_from_command(value: &str) -> Result<(&str, Self), &str> {
         let end_idx = if let Some(value_neg) = value.strip_prefix('-') {
-            value_neg.find(|c: char| !c.is_digit(10)).unwrap_or(value_neg.len()) + 1
+            value_neg
+                .find(|c: char| !c.is_digit(10))
+                .unwrap_or(value_neg.len())
+                + 1
         } else {
             value.find(|c: char| !c.is_digit(10)).unwrap_or(value.len())
         };
